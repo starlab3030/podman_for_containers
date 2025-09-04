@@ -20,12 +20,9 @@
 |skopeo|이미지 복사, 검사, 삭제 및 서명|
 |runc|podman 및 buildah에 컨테이너 실행 및 빌드 기능을 제공|
 |crun|구성 가능한 선택적 런타임으로 루트리스 컨테이너에 대한 유연성, 제어 및 보안을 강화|
-
-> [!NOTE]
-> Podman 데스크탑을 컨테이너 관리를 위한 GUI 기반 앱으로, 컨테이너화된 애플리케이션을 시각적으로 생성, 관리 및 실행할 수 있습니다.
 <br>
 
-### 1.2 Podman, Podman 데스크탑, Buildah 및 Skopeo의 특성 
+### 1.2 Podman, Buildah 및 Skopeo의 특성 
 
 #### 1.2.1 장점
 
@@ -42,7 +39,6 @@
   + 이러한 도구는 이미지를 공유할 수 있음
 * Podman과 프로그래밍 방식으로 상호 작용하려면 Podman v2.0 RESTful API를 사용
   + rootful 환경과 rootless 환경에서 작동
-* Podman 데스크탑은 Podman 엔진에서 애플리케이션 워크로드를 실행할 수 있는 간단하고 직관적인 인터페이스를 제공
 <br>
 
 ### 1.3 RHEL에서 컨테이너 배포에 지원되는 아키텍처
@@ -239,9 +235,260 @@ dnf install podman-docker
 ```
 * podman-docker 패키지는 Docker CLI 및 docker-api를 일치하는 Podman 명령으로 대신 교체
 <br>
+<br>
+
+## 2. rootless 컨테이너
+
+### 2.1 컨테이너 실행 권한
+
+* 수퍼유저 권한(root 사용자)이 있는 사용자로 Podman, Skopeo 또는 Buildah와 같은 컨테이너 툴을 실행하는 것이 시스템에서 사용 가능한 모든 기능에 대한 전체 액세스 권한을 확보할 수 있도록 하는 가장 좋은 방법
+* RHEL에서 일반적으로 제공되는 "Rootless Containers"라는 기능을 사용하면 일반 사용자로 컨테이너를 사용 가능
+  + 시스템 관리자는 rootless 컨테이너 사용자를 설정
+  + 일반 사용자의 컨테이너 활동이 손상될 수 있지만 사용자는 자신의 계정에서 대부분의 컨테이너 기능을 안전하게 실행
+
+> [!WARNING]
+> Docker와 같은 컨테이너 엔진을 사용하면 일반(non-root) 사용자로 Docker 명령을 실행할 수 있지만 해당 요청을 전송하는 Docker 데몬은 root로 실행됩니다. 따라서 일반 사용자는 컨테이너를 통해 시스템을 손상시킬 수 있는 요청을 할 수 있습니다. 
+<br>
+
+### 2.2 non-root 사용자의 podman 사용을 위한 설정
+
+#### 2.2.1 podman 패키지를 설치
+
+실행 명령어
+```bash
+dnf install -y podman
+```
+
+#### 2.2.2 새 사용자 추가 및 암호 설정
+
+실행 명령어
+```bash
+useradd -c "Peter Lee" peter
+passwd peter
+```
+
+실행 결과
+```
+[root@rhel94 ~]# useradd -c "Peter Lee" peter
+
+[root@rhel94 ~]# passwd peter
+peter 사용자의 비밀 번호 변경 중
+새 암호: ******
+새 암호 재입력: ******
+passwd: 모든 인증 토큰이 성공적으로 업데이트 되었습니다.
+
+[root@rhel94 ~]# 
+```
+
+#### 2.2.3 새 사용자에 대한 rootless podman 사용 권한 확인
+
+실행 명령어
+```bash
+grep peter /etc/passwd
+grep peter /etc/group
+grep peter /etc/subuid
+grep peter /etc/subgid
+```
+
+실행 결과
+```
+[root@rhel94 ~]# grep peter /etc/passwd
+peter:x:1002:1002:Peter Lee:/home/peter:/bin/bash
+
+[root@rhel94 ~]# grep peter /etc/group
+peter:x:1002:
+
+[root@rhel94 ~]# grep peter /etc/subuid
+peter:231072:65536
+
+[root@rhel94 ~]# grep peter /etc/subgid
+peter:231072:65536
+
+[root@rhel94 ~]#
+```
+* 사용자를 추가하면, rootless podman을 사용할 수 있도록 자동으로 구성됨
+  + `useradd` 명령은 /etc/subuid 및 /etc/subgid 파일에서 액세스 가능한 사용자 및 그룹 ID의 범위를 자동으로 설정
+  + /etc/subuid 또는 /etc/subgid를 수동으로 변경하는 경우, `podman system migrate` 명령을 실행하여 새 변경 사항 적용 필요
+
+#### 2.2.4 새 사용자로 접속
+
+실행 명령어
+```bash
+ssh peter@localhost
+```
+
+실행 결과
+```
+[root@rhel94 ~]# ssh peter@localhost
+...<snip>...
+peter@localhost's password: ******
+Register this system with Red Hat Insights: insights-client --register
+Create an account or view all your systems at https://red.ht/insights-dashboard
+
+[peter@rhel94 ~]$
+```
+
+> [!WARNING]
+> `su` 또는 `su -` 명령어를 사용하면 올바른 환경 변수를 설정하지 않으므로, 문제를 발생할 수 있습니다.
+
+#### 2.2.5 컨테이너 이미지 가져오기
+
+실행 명령어
+```bash
+podman pull registry.access.redhat.com/ubi9/ubi
+podman images
+```
+
+실행 결과
+```
+[peter@rhel94 ~]$ podman pull registry.access.redhat.com/ubi9/ubi
+Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Getting image source signatures
+Checking if image destination supports signatures
+Copying blob d3cc7dd07291 done   | 
+Copying config b096626d71 done   | 
+Writing manifest to image destination
+Storing signatures
+b096626d71c97a6d8f158dc5d054302156944908907fbc608b5cb35a165cdc84
+
+[peter@rhel94 ~]$ podman images
+REPOSITORY                           TAG         IMAGE ID      CREATED       SIZE
+registry.access.redhat.com/ubi9/ubi  latest      b096626d71c9  14 hours ago  217 MB
+
+[peter@rhel94 ~]$ 
+```
+
+#### 2.2.6 컨테이너를 실행하고 OS 버전 표시
+
+실행 명령어
+```bash
+podman run --rm --name=myubi registry.access.redhat.com/ubi9/ubi \
+  cat /etc/os-release
+```
+
+실행 결과
+```
+[peter@rhel94 ~]$ podman run --rm --name=myubi registry.access.redhat.com/ubi9/ubi \
+  cat /etc/os-release
+NAME="Red Hat Enterprise Linux"
+VERSION="9.6 (Plow)"
+ID="rhel"
+ID_LIKE="fedora"
+VERSION_ID="9.6"
+PLATFORM_ID="platform:el9"
+PRETTY_NAME="Red Hat Enterprise Linux 9.6 (Plow)"
+ANSI_COLOR="0;31"
+LOGO="fedora-logo-icon"
+CPE_NAME="cpe:/o:redhat:enterprise_linux:9::baseos"
+HOME_URL="https://www.redhat.com/"
+DOCUMENTATION_URL="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/9"
+BUG_REPORT_URL="https://issues.redhat.com/"
+
+REDHAT_BUGZILLA_PRODUCT="Red Hat Enterprise Linux 9"
+REDHAT_BUGZILLA_PRODUCT_VERSION=9.6
+REDHAT_SUPPORT_PRODUCT="Red Hat Enterprise Linux"
+REDHAT_SUPPORT_PRODUCT_VERSION="9.6"
+
+[peter@rhel94 ~]$ 
+```
+* podman이 정상적으로 실행되는 것을 확인
+<br>
+
+### 2.3 rootless 컨테이너의 고려 사항
+
+#### 2.3.1 호스트 컨테이너 스토리지 경로는 root와 non-root가 다름
+
+실행 명령어
+```bash
+ls -ldZ /var/lib/containers/storage
+ls -ldZ /home/peter/.local/share/containers/storage
+```
+
+실행 결과
+```
+[root@rhel94 ~]# ls -ldZ /var/lib/containers/storage
+drwxr-xr-x. 8 root root system_u:object_r:container_var_lib_t:s0 4096  3월 22 19:29 /var/lib/containers/storage
+
+[root@rhel94 ~]# ls -ldZ /home/peter/.local/share/containers/storage
+drwx------. 9 peter peter unconfined_u:object_r:data_home_t:s0 4096  9월  4 14:43 /home/peter/.local/share/containers/storage
+
+[root@rhel94 ~]# 
+```
+* 호스트 컨테이너 스토리지 경로
+  + root 사용자: /var/lib/containers/storage
+  + non-root 사용자: $HOME/.local/share/containers/storage
+
+#### 2.3.2 rootless 컨테이너를 실행하는 사용자 권한
+
+* 호스트 시스템에서 다양한 사용자 및 그룹 ID로 실행할 수 있는 특별 권한이 부여
+* 호스트에서 운영 체제에 대한 루트 권한은 없음
+
+#### 2.3.3 /etc/subuid 및 /etc/subgid 수동 변경하는 경우, `podman system migrate` 명령을 실행하여 새 변경 사항을 적용
+
+```
+[root@rhel94 ~]# podman system migrate --help
+Migrate containers
+
+Description:
+        podman system migrate
+        Migrate existing containers to a new version of Podman.
 
 
-## 2. 
+Usage:
+  podman system migrate [options]
+
+Options:
+      --new-runtime string   Specify a new runtime for all containers
+
+[root@rhel94 ~]# 
+```
+
+#### 2.3.4 rootless 컨테이너 환경을 구성해야 하는 경우 홈 디렉터리에 구성 파일을 생성
+
+* $HOME/.local/containers
+  + *storage.conf*: 스토리지 구성
+  + *containers.conf*: 컨테이너 설정
+  + *registries.conf*: podman을 사용하여 이미지를 가져오기, 검색, 및 실행할 때 사용할 수 있는 컨테이너 레지스트리
+<br>
+
+### 2.4 루트 권한 없는 일반 사용자가 rootless 컨테이너 실행 시 제한 사항
+
+#### 2.4.1 루트 권한 없이는, 변경할 수 없는 시스템 기능이 있음
+
+**예: 시스템 클럭 변경**
+* 컨테이너 내에서 SYS_TIME 기능을 설정하고 네트워크 시간 서비스(ntpd)를 실행하여 시스템 클럭 변경 불가
+
+**해결 방안**
+* rootless 컨테이너 환경을 무시하고, root 사용자의 환경을 사용하여 컨테이너 실행 필요
+  ```
+  [root@rhel94 ~]# podman run -d --cap-add SYS_TIME ntpd
+  ```
+* 이 예제는 ntpd가 컨테이너 내부가 아닌 전체 시스템의 시간을 조정할 수 있음
+
+#### 2.4.2 rootless 컨테이너는 1024 미만의 포트 번호에 액세스할 수 없음
+
+**예: 컨테이너 내 80포트를 사용하는 httpd 서비스**
+```
+[peter@rhel94 ~]$ podman run -d httpd
+```
+* 같은 네임스페이스에서는 접속 가능
+* 네임스페이스 외부에서는 접속 안됨
+
+**해결 방안**
+```
+[root@rhel94 ~]# podman run -d -p 80:80 httpd
+```
+* 호스트 시스템에 해당 포트를 노출하려면 root 사용자의 컨테이너 환경을 사용하여 실행
+
+> [!NOTE]
+> 관리자는 일반 사용자가 1024보다 낮은 포트에 서비스를 노출할 수 있도록 구성할 수 있습니다.
+> ```
+> [root@rhel94 ~]# echo 80 > /proc/sys/net/ipv4/ip_unprivileged_port_start
+> ```
+> 하지만, 위와 같이 구성하는 경우에는 보안에 위협이 있을 수 있으므로 충분히 인지해야 합니다.
+
+
+## 99. 
 
 실행 명령어
 ```bash
