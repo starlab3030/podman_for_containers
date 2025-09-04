@@ -1,4 +1,4 @@
-# 
+# RHEL9 상의 컨테이너
 
 ## 1. 레드햇 리눅스 컨테이너
 
@@ -486,9 +486,33 @@ Options:
 > [root@rhel94 ~]# echo 80 > /proc/sys/net/ipv4/ip_unprivileged_port_start
 > ```
 > 하지만, 위와 같이 구성하는 경우에는 보안에 위협이 있을 수 있으므로 충분히 인지해야 합니다.
+<br>
+<br>
 
+## 3. Podman 구성을 위한 모듈 사용
 
-## 99. 
+### 3.1 Podman 모듈을 사용하여 사전 정의된 구성 세트를 로드
+
+#### 3.1.1 Podman 모듈은 TOML 형식의 containers.conf 파일
+
+|사용자|모듈 위치|
+|:---|:---|
+|rootless 사용자의 경우|$HOME/.config/containers/containers.conf.modules|
+|root 사용자 경우|/etc/containers/containers.conf.modules<br>/usr/share/containers/containers.conf.modules|
+
+> [!NOTE]
+> TOML은 [TOM's Obvious Mimimal Language](https://toml.io/en/)의 약자입니다.
+
+#### 3.1.2 podman 명령어로 모듈 로드
+
+온디맨드 모듈을 로드하여 시스템 및 사용자 구성 파일을 덮어쓰기
+```bash
+podman --module <your_module_name>
+```
+* module 옵션을 사용하여 모듈을 여러 번 지정 가능
+* <your_module_name>이 절대 경로이면 구성 파일이 직접 로드됨
+* 상대 경로는 이전에 언급한 세 개의 모듈 디렉터리에 따라 해결됩니다.
+* $HOME의 모듈은 /etc/ 및 /usr/share/ 디렉터리의 모듈을 재정의
 
 실행 명령어
 ```bash
