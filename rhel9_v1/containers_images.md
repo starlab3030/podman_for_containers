@@ -95,18 +95,32 @@ ubi9-init 이미지는 ubi9 이미지 상단에 빌드되므로 해당 콘텐츠
 
 |이미지|설명|
 |:---|:---|
-|ubi9-init||
-|ubi9||
-
-
+|ubi9-init|<ul><li>CMD는 기본적으로 systemd Init 서비스를 시작하기 위해 /sbin/init 로 설정</li><li>ps 및 process 관련 명령 포함 (procps-ng package)</li><li>ubi9-init 의 systemd 는 종료(SIGTERM 및 SIGKILL)를 무시하므로 SIGRTMIN+3 을 StopSignal 으로 설정하지만 SIGRTMIN+3을 수신하면 종료</li></ul>|
+|ubi9|<ul><li>CMD가 /bin/bash로 설정</li><li>ps 및 process 관련 명령(procps-ng package)을 포함하지 않음</li><li>료하기 위해 정상적인 신호를 무시하지 않음(SIGTERM 및 SIGKILL)</li></ul>|
 <br>
 
 ### 1.6 UBI 최소 (ubi-minimal) 이미지
 
+#### 1.6.1 특징
+
+* 사전 설치된 최소화된 콘텐츠 세트와 패키지 관리자(microdnf)를 제공
+* 이미지에 포함된 종속성을 최소화하면서 Containerfile을 사용
+
+#### 1.6.2 주요 기능
+
+|기능|설명|
+|:---|:---|
+|작은 크기|<ul><li>최소 이미지는 압축 시 디스크에서 약 92M과 32M</li><li>표준 이미지 크기의 절반 미만</li></ul>|
+|소프트웨어 설치(microdnf)|<ul><li>dnf 기능을 포함하는 대신, 최소 이미지에는 microdnf 유틸리티가 포함</li><li>microdnf 는 패키지를 설치한 후 리포지토리를 활성화 및 비활성화하고 패키지를 제거 및 업데이트하고 캐시를 정리할 수 있도록 하는 dnf 의 축소 버전</li></ul>|
+|RHEL 패키징 기반|<ul><li>일반 RHEL 소프트웨어 RPM 패키지가 포함되어 있으며 몇 가지 기능이 제거됨</li><li>systemd 또는 System V init, Python 런타임 환경 및 일부 쉘 유틸리티와 같은 초기화 및 서비스 관리 시스템이 포함되지 않음</li><li>이미지 빌드를 위해 RHEL 리포지토리를 사용할 수 있지만 최소한의 오버헤드를 수행</li></ul>|
+|microdnf 모듈 지원|<ul><li>microdnf 명령에 사용되는 모듈은 사용 가능한 경우 동일한 소프트웨어의 여러 버전을 설치 가능</li><li>microdnf module enable, microdnf module disable, microdnf module reset을 사용하여 모듈 스트림을 각각 활성화, 비활성화 및 재설정</li></ul>|
 <br>
 
 ### 1.7 UBI 마이크로 (ubi-micro) 이미지
 
+* 패키지 관리자 및 일반적으로 컨테이너 이미지에 포함된 모든 종속 항목을 제외하고 얻은 최소 UBI 이미지
+* ubi-micro 이미지를 기반으로 컨테이너 이미지의 공격 면적을 최소화하고 다른 애플리케이션에 UBI Standard, Minimal 또는 Init을 사용하는 경우에도 최소 애플리케이션에 적합
+* 리눅스 배포 패키징이 없는 컨테이너 이미지를 Distroless 컨테이너 이미지라고 함
 <br>
 <br>
 
